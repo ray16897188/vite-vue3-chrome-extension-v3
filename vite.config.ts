@@ -36,16 +36,15 @@ export default defineConfig({
           dir: 'src/popup/pages',
           baseRoute: 'popup',
         },
+        {
+          dir: 'src/content-script/iframe/pages',
+          baseRoute: 'iframe',
+        },
       ],
     }),
 
     AutoImport({
-      imports: [
-        'vue',
-        'vue-router',
-        'vue/macros',
-        { 'webext-bridge': ['sendMessage', 'onMessage'] },
-      ],
+      imports: ['vue', 'vue-router', 'vue/macros'],
       dts: 'src/auto-imports.d.ts',
     }),
 
@@ -57,14 +56,17 @@ export default defineConfig({
       resolvers: [
         // auto import icons
         IconsResolver({
-          prefix: 'icon',
+          prefix: 'i',
           enabledCollections: ['mdi'],
         }),
       ],
     }),
 
     // https://github.com/antfu/unplugin-icons
-    Icons(),
+    Icons({
+      autoInstall: true,
+      compiler: 'vue3',
+    }),
 
     // rewrite assets to use relative path
     {
@@ -79,6 +81,13 @@ export default defineConfig({
       },
     },
   ],
+  build: {
+    rollupOptions: {
+      input: {
+        iframe: 'src/content-script/iframe/index.html',
+      },
+    },
+  },
   server: {
     port: 8888,
     strictPort: true,
