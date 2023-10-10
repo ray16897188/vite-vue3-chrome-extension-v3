@@ -9,4 +9,7 @@ module.exports = {
     require('@tailwindcss/forms'),
     require('daisyui'),
   ],
+  daisyui: {
+    themes: ["light", "dark", "cupcake", "aqua", "bumblebee", "emerald", "corporate", "synthwave", "retro", "cyberpunk", "valentine", "halloween", "garden", "forest", "alien", "lofi", "pastel", "fantasy", "wireframe", "black", "luxury"],
+  },
 }

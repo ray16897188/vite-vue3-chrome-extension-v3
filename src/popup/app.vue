@@ -1,20 +1,14 @@
 <script setup lang="ts"></script>
 
 <template>
-  <header
-    aria-label="Site Header"
-    class="bg-gray-50"
-  >
-    Popup Header
+  <header aria-label="Site Header">
+
   </header>
 
   <RouterView></RouterView>
 
-  <footer
-    aria-label="Site Footer"
-    class="bg-gray-50"
-  >
-    Popup Footer
+  <footer aria-label="Site Footer" class="text-right">
+
   </footer>
 </template>
 
