@@ -13,7 +13,6 @@
   </div>
 
   <div v-if="apiKey && apiSecret" class="text-center m-4 flex flex-col">
-    <!-- <button @click="resetAuth" class="btn btn-xs w-12/12 mt-3 mx-8 btn-primary">reset api token</button> -->
     <div class="flex justify-center mb-5">
       <div class="tabs text-center">
         <a v-for="currency in currencies"
@@ -24,57 +23,87 @@
       </div>
     </div>
 
-    <div class="badge text-xs">持仓</div>
+    <div class="badge badge-neutral text-xs mb-4">账户信息</div>
+    <div class="stats shadow">
+
+      <div class="stat">
+        <div class="stat-title">Equity</div>
+        <div v-if="portfolios[selectedCurrency]" class="stat-value text-base">{{ portfolios[selectedCurrency].equity }}</div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-title">IM</div>
+        <div  v-if="portfolios[selectedCurrency]" class="stat-value text-base">{{ ((portfolios[selectedCurrency].initial_margin / portfolios[selectedCurrency].equity) * 100).toFixed(2) }}%</div>
+      </div>
+
+      <div class="stat">
+        <div class="stat-title">MM</div>
+        <div  v-if="portfolios[selectedCurrency]" class="stat-value text-base">{{ ((portfolios[selectedCurrency].maintenance_margin / portfolios[selectedCurrency].equity) * 100).toFixed(2) }}%</div>
+      </div>
+
+    </div>
+    <!-- <div class="divider"></div> -->
+
+    <div class="badge badge-neutral text-xs mb-4 mt-8">期货持仓分布</div>
     <table class="table table-xs table-pin-rows">
       <thead>
         <tr>
-          <th style="width:21%">Instrument</th>
-          <th>Direction</th>
-          <th>Size</th>
-          <th>Avg Price</th>
-          <th>Mark Price</th>
-          <th>RPL</th>
-          <th>PNL</th>
-          <th>Delta</th>
+          <th v-for="pos in sortedFuturePositions(selectedCurrency)" :key="pos.instrument_name">{{ pos.instrument_name.split('-')[1] }}</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="pos in futurePositions[selectedCurrency]" :key="pos">
-          <td>{{ pos.instrument_name }}</td>
-          <td>{{ pos.direction }}</td>
-          <td>{{ pos.size }}</td>
-          <td>{{ pos.average_price }}</td>
-          <td>{{ pos.mark_price }}</td>
-          <td>{{ pos.realized_profit_loss }}</td>
-          <td>{{ pos.total_profit_loss }}</td>
-          <td>{{ pos.delta }}</td>
-        </tr>
-        <tr v-for="pos in optionPositions[selectedCurrency]" :key="pos.instrument_name">
-          <td>{{ pos.instrument_name }}</td>
-          <td>{{ pos.direction }}</td>
-          <td>{{ pos.size }}</td>
-          <td>{{ pos.average_price }}</td>
-          <td>{{ pos.mark_price }}</td>
-          <td>{{ pos.realized_profit_loss }}</td>
-          <td>{{ pos.total_profit_loss }}</td>
-          <td>{{ pos.delta }}</td>
+        <tr>
+          <td v-for="pos in sortedFuturePositions(selectedCurrency)" :key="pos.instrument_name">{{ pos.size }}</td>
         </tr>
       </tbody>
     </table>
-    <div class="divider"></div>
 
-    <div class="badge text-xs">压力测试</div>
+    <div class="badge badge-neutral text-xs mt-6 mb-3">期权持仓分布</div>
+    <table class="table table-xs table-pin-rows text-center table-boarded">
+      <thead>
+        <tr class="bg-base-200">
+          <th>CALL</th>
+          <th>PUT</th>
+        </tr>
+      </thead>
+    </table>
+    <table class="table table-xs table-pin-rows text-center">
+      <thead>
+        <tr>
+          <th v-for="exp in formattedOptionPositions(selectedCurrency)[0]" :key="exp">{{ exp }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="row in formattedOptionPositions(selectedCurrency).slice(1)" :key="row">
+          <td v-for="pos in row" :key="pos">{{ pos }}</td>
+        </tr>
+      </tbody>
+    </table>
+    <!-- <div class="divider"></div> -->
+
+    <div class="badge badge-default text-xs mb-4 mt-8">操作</div>
+    <button @click="resetAuth" class="btn btn-xs w-2/12 btn-default">log out</button>
+
+    <!-- <div class="badge text-xs badge-neutral mb-4">压力测试</div> -->
+    <!-- <div v-for="pos in optionPositions[selectedCurrency]" :key="pos.instrument_name">
+      <p>{{ pos.instrument_name }}</p>
+      <p>{{ bsm(pos, ethPrice, ethPrice, 38) }}</p>
+    </div> -->
   </div>
 
   <div v-else class="text-center m-4 flex flex-col">
     <input v-model="inputApiKey" type="text" placeholder="Your READ-ONLY Deribit API Key" class="input input-bordered input-xs w-12/12 mt-1 mx-8" />
     <input v-model="inputApiSecret" type="password" placeholder="Your READ-ONLY Deribit API Secret" class="input input-bordered input-xs w-12/12 mt-2 mx-8" />
+    <p class="text-xs text-gray-500 text-center mt-2">为防止切换到其他标签页复制 api key 和 secret 导致本窗口被关闭，请先将保存了 api 信息的其他标签页提前打开成独立的页面再完成信息的复制。</p>
     <button @click="saveKeys" class="btn btn-xs w-12/12 mt-3 mx-8 btn-primary">Submit</button>
   </div>
 <!-- </div> -->
 </template>
 
 <script>
+import Greeks from './Greeks'
+const deribitWs = 'wss://test.deribit.com/ws/api/v2';
+
 export default {
   data() {
     return {
@@ -95,13 +124,28 @@ export default {
       optionPositions: null,
       futurePositions: null,
       selectedCurrency: 'btc',
+      subscribedTickers: null,
+      tickers: null,
+      portfolios: null,
+      // ws: null,
     };
+  },
+  watch: {
+    'apiKey': function(newApiKey, oldApiKey) {
+      if (!oldApiKey && newApiKey) {
+        console.log('apiKey changed');
+        this.privateWsSetup();
+      }
+    },
   },
   mounted() {
     chrome.storage.local.get(['apiKey', 'apiSecret'], (result) => {
       this.apiKey = result.apiKey;
       this.apiSecret = result.apiSecret;
       this.instruments = {};
+      this.tickers = {};
+      this.portfolios = {};
+      this.subscribedTickers = new Set();
       for (var i = 0; i < this.kinds.length; i++) {
         this.instruments[this.kinds[i]] = {};
         this[this.kinds[i]+'Positions'] = {};
@@ -114,6 +158,67 @@ export default {
     });
   },
   methods: {
+    bsm(pos, underlyingPrice, indexPrice, iv) {
+      return new Greeks(pos, underlyingPrice, indexPrice, iv).bsmPrice() / indexPrice;
+    },
+    // 期货持仓分布数据
+    sortedFuturePositions(currency) {
+      var positions = [];
+      for (const instrument in this.futurePositions[currency]) {
+        positions.push(this.futurePositions[currency][instrument]);
+      }
+      positions.sort(function(a, b) {
+        let aExp = a.instrument_name.split('-')[1];
+        let bExp = b.instrument_name.split('-')[1];
+        if (aExp == 'PERPETUAL') {
+          return -1;
+        }
+        let aExpTs = new Date(aExp).getTime();
+        let bExpTs = new Date(bExp).getTime();
+        return aExpTs - bExpTs;
+      });
+      return positions;
+    },
+    // 期权持仓分布数据
+    formattedOptionPositions(currency) {
+      var expStrs = new Set(Object.keys(this.optionPositions[currency]).map((x) => x.split('-')[1]));
+      if (expStrs.size == 0) {
+        return [];
+      }
+      expStrs = [...expStrs];
+      const callExpStrs = expStrs.slice().reverse();
+      const expDates = callExpStrs.concat(['Strike']).concat(expStrs);  // ['Date3', 'Date2', 'Date1', 'Strike', 'Date1', 'Date2', 'Date3']
+      var strikePrices = new Set(Object.keys(this.optionPositions[currency]).map((x) => parseInt(x.split('-')[2])));
+      strikePrices = [...strikePrices].sort((a, b) => a - b);
+      var positionRows = [];
+
+      for (var i = 0; i < strikePrices.length; i++) {
+        var strikePrice = strikePrices[i];
+        var row = [];
+        // calls
+        for (var j = 0; j < expStrs.length; j++) {
+          var instrumentName = `${currency.toUpperCase()}-${callExpStrs[j]}-${strikePrice}-C`;
+          if (this.optionPositions[currency][instrumentName]) {
+            row.push(this.optionPositions[currency][instrumentName].size);
+          } else {
+            row.push(null);
+          }
+        }
+        // strike price
+        row.push(strikePrice);
+        // puts
+        for (var j = 0; j < expStrs.length; j++) {
+          var instrumentName = `${currency.toUpperCase()}-${expStrs[j]}-${strikePrice}-P`;
+          if (this.optionPositions[currency][instrumentName]) {
+            row.push(this.optionPositions[currency][instrumentName].size);
+          } else {
+            row.push(null);
+          }
+        }
+        positionRows.push(row);
+      }
+      return [expDates].concat(positionRows);
+    },
     saveKeys() {
       chrome.storage.local.set({
         apiKey: this.inputApiKey,
@@ -134,8 +239,7 @@ export default {
       setInterval(func, interval);
     },
     wsSetup() {
-      // var ws = new WebSocket('wss://www.deribit.com/ws/api/v2');
-      var ws = new WebSocket('wss://test.deribit.com/ws/api/v2');
+      var ws = new WebSocket(deribitWs);
       ws.onmessage = (e) => {
         var msg = JSON.parse(e.data);
         if (msg.method == 'subscription') {
@@ -143,12 +247,9 @@ export default {
             this.btcPrice = msg.params.data.price;
           } else if (msg.params.channel == 'deribit_price_index.eth_usd') {
             this.ethPrice = msg.params.data.price;
-          } else if (msg.params.channel.startsWith('book.')) {
-            // console.log(msg)
-          } else if (msg.params.channel.startsWith('user.portfolio.')) {
-            // console.log(msg)
-          } else if (msg.params.channel.startsWith('user.changes.')) {
-            this.updatePositions(msg.params.data.positions);
+          } else if (msg.params.channel.startsWith('ticker.')) {
+            var ticker = msg.params.data;
+            this.tickers[ticker.instrument_name] = ticker;
           }
         } else if (msg.id == this.instrumentsReqId) {
           var result = msg.result;
@@ -160,18 +261,46 @@ export default {
             // this.subOrderBook(newInstruments, ws);
             this.instruments[kind][currency] = instrumentNames;
           }
+        }
+      };
+      // subscriptions and periodic tasks
+      ws.onopen = () => {
+        ws.send(this.heartBeatMsg());                       // heart beat
+        this.periodTask(() => {                             // ping
+          ws.send(this.pingMsg());
+        }, 30000);
+        ws.send(this.subIndexPriceMsg(this.currencies));    // index price
+
+        // this.periodTask(() => {                             // instruments
+        //   for (var i = 0; i < this.kinds.length; i++) {
+        //     for (var j = 0; j < this.currencies.length; j++) {
+        //       ws.send(this.getInstrumentsMsg(this.kinds[i], this.currencies[j]));
+        //     }
+        //   }
+        // }, 10000);
+      };
+      console.log("wsSetup done");
+    },
+    privateWsSetup: function() {
+      var ws = new WebSocket(deribitWs);
+      ws.onmessage = (e) => {
+        var msg = JSON.parse(e.data);
+        if (msg.method == 'subscription') {
+          if (msg.params.channel.startsWith('user.portfolio.')) {
+            this.portfolios[msg.params.data.currency.toLowerCase()] = msg.params.data;
+          } else if (msg.params.channel.startsWith('user.changes.')) {
+            this.updatePositions(msg.params.data.positions, ws);
+          }
         } else if (msg.id == this.authReqId) {    // auth success
-          // console.log(msg);
           this.refreshToken = msg.result.refresh_token;
           setInterval(() => {
             ws.send(this.refreshMsg());
           }, 1000 * 60);
           ws.send(this.portfolioMsg(this.currencies));  // 订阅 portfolio
         } else if (msg.id == this.refreshReqId) {
-          // console.log(msg);
           this.refreshToken = msg.result.refresh_token;
         } else if (msg.id == this.positionsReqId) {     // 获取 positions
-          this.updatePositions(msg.result);
+          this.updatePositions(msg.result, ws);
         }
       };
       // subscriptions and periodic tasks
@@ -181,14 +310,6 @@ export default {
           ws.send(this.pingMsg());
         }, 30000);
         ws.send(this.authMsg());                            // auth
-        ws.send(this.subIndexPriceMsg(this.currencies));    // index price
-        this.periodTask(() => {                             // instruments
-          for (var i = 0; i < this.kinds.length; i++) {
-            for (var j = 0; j < this.currencies.length; j++) {
-              ws.send(this.getInstrumentsMsg(this.kinds[i], this.currencies[j]));
-            }
-          }
-        }, 10000);
         this.periodTask(() => {                             // user positions
           for (var i = 0; i < this.kinds.length; i++) {
             for (var j = 0; j < this.currencies.length; j++) {
@@ -196,16 +317,29 @@ export default {
             }
           }
         }, 1000 * 60 * 5);
-        // user changes
-        ws.send(this.userChangesMsg());
+
+        ws.send(this.userChangesMsg());                     // user changes
       };
-      console.log("wsSetup done");
+      console.log("privateWsSetup done");
     },
-    updatePositions: function(positions) {
+    updatePositions: function(positions, ws) {
       for (var i = 0; i < positions.length; i++) {
         var currency = positions[i].instrument_name.split('-')[0].toLowerCase();
         var kind = positions[i].kind;
         this[kind+'Positions'][currency][positions[i].instrument_name] = positions[i];
+      }
+      var instruments = positions.map((x) => x.instrument_name);
+      var newInstruments = new Set([...instruments].filter(x => !this.subscribedTickers.has(x)));
+
+      this.subTickers([...newInstruments], ws);
+    },
+    subTickers: function(instruments, ws) {
+      var batchSize = 100;
+      for (var i = 0; i < instruments.length; i += batchSize) {
+        var batch = instruments.slice(i, i + batchSize);
+        var channels = batch.map((x) => `ticker.${x}.raw`);
+        ws.send(this.buildMsg('public/subscribe', {channels: channels}));
+        this.subscribedTickers.add(...batch);
       }
     },
     subOrderBook: function(instrumentNames, ws) {

@@ -37,7 +37,7 @@
     "vue-tsc": "^1.8.15",
     "webext-bridge": "^6.0.1"
   },
-  "displayName": "Vite Vue 3 Chrome Extension",
+  "displayName": "Deribit Option Widgets",
   "name": "vite-vue3-chrome-extension-v3",
   "overrides": {
     "@crxjs/vite-plugin": "$@crxjs/vite-plugin"
