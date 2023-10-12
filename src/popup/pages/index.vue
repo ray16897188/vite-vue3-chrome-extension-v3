@@ -186,6 +186,8 @@ export default {
         return [];
       }
       expStrs = [...expStrs];
+      expStrs.sort((a, b) => Date.parse(a) - Date.parse(b));  // for puts
+
       const callExpStrs = expStrs.slice().reverse();
       const expDates = callExpStrs.concat(['Strike']).concat(expStrs);  // ['Date3', 'Date2', 'Date1', 'Strike', 'Date1', 'Date2', 'Date3']
       var strikePrices = new Set(Object.keys(this.optionPositions[currency]).map((x) => parseInt(x.split('-')[2])));
