@@ -94,7 +94,7 @@
   <div v-else class="text-center m-4 flex flex-col">
     <input v-model="inputApiKey" type="text" placeholder="Your READ-ONLY Deribit API Key" class="input input-bordered input-xs w-12/12 mt-1 mx-8" />
     <input v-model="inputApiSecret" type="password" placeholder="Your READ-ONLY Deribit API Secret" class="input input-bordered input-xs w-12/12 mt-2 mx-8" />
-    <p class="text-xs text-gray-500 text-center mt-2">为防止切换到其他标签页复制 api key 和 secret 导致本窗口被关闭，请先将保存了 api 信息的其他标签页提前打开成独立的页面再完成信息的复制。</p>
+    <p class="text-xs text-gray-500 text-center mt-2">请从单独的窗口网页复制密钥，否则切换标签页会导致本页面失焦而重启</p>
     <button @click="saveKeys" class="btn btn-xs w-12/12 mt-3 mx-8 btn-primary">Submit</button>
   </div>
 <!-- </div> -->
@@ -102,7 +102,7 @@
 
 <script>
 import Greeks from './Greeks'
-const deribitWs = 'wss://test.deribit.com/ws/api/v2';
+const deribitWs = 'wss://www.deribit.com/ws/api/v2';
 
 export default {
   data() {

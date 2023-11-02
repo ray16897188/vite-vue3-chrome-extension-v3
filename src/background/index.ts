@@ -9,6 +9,6 @@ chrome.runtime.onInstalled.addListener(async (opt) => {
   }
 })
 
-console.log('hello world from background')
+console.log('hello world from background~')
 
 export {}
